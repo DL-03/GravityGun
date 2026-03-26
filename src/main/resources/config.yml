@@ -1,0 +1,46 @@
+version: 1
+
+item:
+  name: "Gravity Gun"
+
+mechanics:
+  grab:
+    range: 8.0
+    cooldown: 0.3
+
+  pull:
+    range: 25.0
+    force: 0.6
+
+  hold:
+    max-time: 0.0
+    distance:
+      min: 1.0
+      max: 8.0
+      step: 1.0
+
+  launch:
+    power: 2.0
+
+limits:
+  entities:
+    allow-grab: true
+    allow-grab-players: true
+
+    list-mode: BLACKLIST  # BLACKLIST or WHITELIST or DISABLED
+    list:
+      - ITEM_FRAME
+      - GLOW_ITEM_FRAME
+      - PAINTING
+
+  blocks:
+    allow-grab: false
+
+    list-mode: BLACKLIST  # BLACKLIST or WHITELIST or DISABLED
+    list:
+      - BEDROCK
+      - END_PORTAL_FRAME
+      - COMMAND_BLOCK
+      - STRUCTURE_BLOCK
+      - JIGSAW
+      - BARRIER

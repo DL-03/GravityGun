@@ -1,0 +1,10 @@
+name: GravityGun
+version: '0.1.0'
+main: me.dl.GravityGun.GravityGun
+prefix: gg
+author: DL
+website: ""
+api-version: '1.21'
+commands:
+    gg:
+        usage: /gg [help/reload/give <player>]
