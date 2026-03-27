@@ -1,9 +1,9 @@
 name: GravityGun
-version: '0.1.0'
+version: '0.1.1'
 main: me.dl.GravityGun.GravityGun
 prefix: gg
 author: DL
-website: ""
+website: "https://github.com/DL-03/GravityGun"
 api-version: '1.21'
 commands:
     gg:

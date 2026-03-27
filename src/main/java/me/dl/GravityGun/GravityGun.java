@@ -10,10 +10,7 @@ public final class GravityGun extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-        if (getResource("config.yml") == null) {
-            saveResource("config.yml", false);
-            saveDefaultConfig();
-        }
+        saveDefaultConfig();
 
         manager = new Manager();
         getServer().getPluginManager().registerEvents(manager, this);

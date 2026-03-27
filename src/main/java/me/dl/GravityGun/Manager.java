@@ -31,7 +31,6 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 
-import java.io.StringReader;
 import java.util.*;
 
 public class Manager implements Listener {
@@ -103,6 +102,15 @@ public class Manager implements Listener {
     float task_i = 0.0F;
     float task_i_sound_amb = 0.0F;
 
+    public static <K, V> K getKeyByValue(Map<K, V> map, V value) {
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (Objects.equals(entry.getValue(), value)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
     public void reload() {
         this.NAME = GravityGun.getInstance().getConfig().getString("item.name", "Gravity Gun");
         this.DISPLAY_NAME = Component.text(NAME).color(TextColor.fromHexString("#FFAA00"));
@@ -113,7 +121,7 @@ public class Manager implements Listener {
         this.pull_range = GravityGun.getInstance().getConfig().getDouble("mechanics.pull.range", 25.0D);
         this.pull_force = GravityGun.getInstance().getConfig().getDouble("mechanics.pull.force", 0.6D);
 
-        this.launch_power = GravityGun.getInstance().getConfig().getDouble("mechanics.launch.power", 5D);
+        this.launch_power = GravityGun.getInstance().getConfig().getDouble("mechanics.launch.power", 2.0D);
 
         this.hold_distance_min = GravityGun.getInstance().getConfig().getDouble("mechanics.hold.distance.min", 1.0D);
         this.hold_distance_max = GravityGun.getInstance().getConfig().getDouble("mechanics.hold.distance.max", 8.0D);
@@ -243,7 +251,7 @@ public class Manager implements Listener {
     }
 
     public ItemStack makeGravityGun() {
-        ItemStack itemStack = ItemStack.of(MATERIAL, 1);
+        ItemStack itemStack = new ItemStack(MATERIAL, 1);
         itemStack.editMeta(im -> {
             CrossbowMeta cm = (CrossbowMeta)im;
             CustomModelDataComponent customModelDataComponent = cm.getCustomModelDataComponent();
@@ -302,7 +310,6 @@ public class Manager implements Listener {
 
                         Entity entity = this.playerEntityMap.get(player);
                         if (!canEntityTeleportSafely(entity, newLocation)) {
-                            // Если новая позиция небезопасна, не меняем расстояние
                             return;
                         }
 
@@ -417,6 +424,7 @@ public class Manager implements Listener {
     }
 
     Entity release(Player player) {
+        if (!this.playerEntityMap.containsKey(player)) return null;
         ItemStack item = player.getInventory().getItemInMainHand();
 
         Entity entity = this.playerEntityMap.get(player);
@@ -480,9 +488,9 @@ public class Manager implements Listener {
     }
 
     void launch(Player player) {
+        if (!this.playerEntityMap.containsKey(player)) return;
         Entity entity = release(player);
         entity.setVelocity(player.getLocation().getDirection().multiply(this.launch_power));
-
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1f, 0f);
     }
 
@@ -656,7 +664,6 @@ public class Manager implements Listener {
         }
     }
 
-
     private void restoreBlock(FallingBlock fb, Block block) {
         PersistentDataContainer pdc = fb.getPersistentDataContainer();
         String rawData = pdc.get(keyBlockData, PersistentDataType.STRING);
@@ -668,7 +675,6 @@ public class Manager implements Listener {
             fb.remove();
 
             int attempts = 0;
-            // Ищем воздух или заменяемый блок, двигаясь вверх
             while (attempts < 5) {
                 Material type = block.getType();
                 if (type.isAir() || block.isReplaceable()) break;
@@ -699,7 +705,6 @@ public class Manager implements Listener {
         if (!(event.getEntity() instanceof FallingBlock fb)) return;
         if (!fb.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN)) return;
 
-        // Если блок успешно приземлился на твердую поверхность
         event.setCancelled(true);
         restoreBlock(fb, event.getBlock());
     }
@@ -709,8 +714,7 @@ public class Manager implements Listener {
         if (!(event.getEntity() instanceof FallingBlock fb)) return;
         if (!fb.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN)) return;
 
-        // Если падающий блок разрушился (упал на факел, плиту или паутину)
-        event.setCancelled(true); // Запрещаем выпадение предметика
+        event.setCancelled(true);
         restoreBlock(fb, fb.getLocation().getBlock());
     }
 }
