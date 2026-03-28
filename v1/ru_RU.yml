@@ -4,3 +4,4 @@ item.gravity-gun.name: "Гравитационная пушка"
 
 message.no-permission: "У вас нет разрешения на использование этой команды"
 message.gg.unknown-command: "Неизвестная команда. Используйте <click:run_command:'/gg help'><gold>/gg help</click> для получения списка команд."
+message.give-success: "Гравитационная пушка успешно выдана игроку {player}"
