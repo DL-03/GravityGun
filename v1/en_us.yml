@@ -1,15 +1,15 @@
 version: 1
 
-item.gravity-gun.name: "Gravity Gun"
+item.gravity-gun.name: "<gold>Gravity Gun"
 
-message.config-reloaded: "Configuration reloaded"
-message.no-permission: "You don't have permission to use this command"
-message.console-cant-use-command: "The console cannot use this command"
-message.unknown-player: "Player {player} not found"
+message.config-reloaded: "<green>Configuration reloaded"
+message.no-permission: "<red>You don't have permission to use this command"
+message.console-cant-use-command: "<red>The console cannot use this command"
+message.unknown-player: "<red>Player <player> not found"
 
-message.gg.unknown-command: "Unknown command. Use <click:run_command:'/gg help'><gold>/gg help</click> for help"
-message.gg.give.success: "You gave {player} the gravity gun"
-message.gg.help: "=== Gravity Gun Commands ===\n
-   <click:run_command:'/gg help'><gold>/gg help</click> - show this help message
-   <click:run_command:'/gg reload'><gold>/gg reload</click> - reload the plugin configuration
+message.gg.unknown-command: "<red>Unknown command. Use <click:run_command:'/gg help'><gold>/gg help</click> for help"
+message.gg.give.success: "<green>You gave <player> the gravity gun"
+message.gg.help: "<b><gold>=== Gravity Gun Commands ===</gold></b>\n
+   <click:run_command:'/gg help'><gold>/gg help</click> - show this help message\n
+   <click:run_command:'/gg reload'><gold>/gg reload</click> - reload the plugin configuration\n
    <click:run_command:'/gg give'><gold>/gg give</click> - give the gravity gun to yourself or another player"
