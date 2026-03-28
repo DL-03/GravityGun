@@ -1,7 +1,0 @@
-version: 1
-
-item.gravity-gun.name: "Gravity Gun"
-
-message.no-permission: "You don't have permission to use this command"
-message.invalid-usage: "Invalid command usage. Please use: /gg <help|reload|give [player]>"
-message.give-success: "Successfully gave the Gravity Gun to {player}"

@@ -1,0 +1,7 @@
+version: 1
+
+item.gravity-gun.name: "Gravity Gun"
+
+message.no-permission: "You don't have permission to use this command"
+message.gg.unknown-command: "Unknown command. Use <click:run_command:'/gg help'><gold>/gg help</click> for help"
+message.give-success: "Successfully gave the Gravity Gun to {player}"
