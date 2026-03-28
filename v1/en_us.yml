@@ -9,7 +9,7 @@ message.unknown-player: "Player {player} not found"
 
 message.gg.unknown-command: "Unknown command. Use <click:run_command:'/gg help'><gold>/gg help</click> for help"
 message.gg.give.success: "You gave {player} the gravity gun"
-message.gg.help: "=== Gravity Gun Commands ===\n" |
-   "<click:run_command:'/gg help'><gold>/gg help</click> - show this help message" |
-   "<click:run_command:'/gg reload'><gold>/gg reload</click> - reload the plugin configuration" |              
-   "<click:run_command:'/gg give'><gold>/gg give</click> - give the gravity gun to yourself or another player"
+message.gg.help: "=== Gravity Gun Commands ===\n
+   <click:run_command:'/gg help'><gold>/gg help</click> - show this help message
+   <click:run_command:'/gg reload'><gold>/gg reload</click> - reload the plugin configuration
+   <click:run_command:'/gg give'><gold>/gg give</click> - give the gravity gun to yourself or another player"
