@@ -1,0 +1,5 @@
+version: 1
+
+item.gravity-gun.name: "Гравитационная пушка"
+
+message.no-permission: "У вас нет разрешения на использование этой команды"
