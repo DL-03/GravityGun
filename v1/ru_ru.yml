@@ -9,7 +9,7 @@ message.unknown-player: "Игрок {player} не найден"
 
 message.gg.unknown-command: "Неизвестная команда. Используйте <click:run_command:'/gg help'><gold>/gg help</click> для просмотра списка команд."
 message.gg.give.success: "Вы дали {player} гравитационную пушку"
-message.gg.help: "=== Команды Gravity Gun ===\n" +
-   "<click:run_command:'/gg help'><gold>/gg help</click> - показать этот список команд\n" +
-   "<click:run_command:'/gg reload'><gold>/gg reload</click> - перезагрузить конфигурацию плагина\n" +              
+message.gg.help: "=== Команды Gravity Gun ===\n" |
+   "<click:run_command:'/gg help'><gold>/gg help</click> - показать этот список команд" |
+   "<click:run_command:'/gg reload'><gold>/gg reload</click> - перезагрузить конфигурацию плагина" |     
    "<click:run_command:'/gg give'><gold>/gg give</click> - дать гравитационную пушку себе или другому игроку"
