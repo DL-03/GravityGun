@@ -2,6 +2,14 @@ version: 1
 
 item.gravity-gun.name: "Гравитационная пушка"
 
+message.config-reloaded: "Конфигурация перезагружена"
 message.no-permission: "У вас нет разрешения на использование этой команды"
-message.gg.unknown-command: "Неизвестная команда. Используйте <click:run_command:'/gg help'><gold>/gg help</click> для получения списка команд."
-message.give-success: "Гравитационная пушка успешно выдана игроку {player}"
+message.console-cant-use-command: "Консоль не может использовать эту команду"
+message.unknown-player: "Игрок {player} не найден"
+
+message.gg.unknown-command: "Неизвестная команда. Используйте <click:run_command:'/gg help'><gold>/gg help</click> для просмотра списка команд."
+message.gg.give.success: "Вы дали {player} гравитационную пушку"
+message.gg.help: "=== Команды Gravity Gun ===\n" +
+   "<click:run_command:'/gg help'><gold>/gg help</click> - показать этот список команд\n" +
+   "<click:run_command:'/gg reload'><gold>/gg reload</click> - перезагрузить конфигурацию плагина\n" +              
+   "<click:run_command:'/gg give'><gold>/gg give</click> - дать гравитационную пушку себе или другому игроку"
