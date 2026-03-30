@@ -1,10 +1,11 @@
 name: GravityGun
-version: '0.1.1'
+description: "A Minecraft plugin that recreates the Gravity Gun tool from Half-Life 2."
+version: '0.2.0'
 main: me.dl.GravityGun.GravityGun
 prefix: gg
 author: DL
 website: "https://github.com/DL-03/GravityGun"
-api-version: '1.21'
+api-version: '1.21.11'
 commands:
     gg:
         usage: /gg [help/reload/give <player>]

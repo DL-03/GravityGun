@@ -1,7 +1,8 @@
 package me.dl.GravityGun;
 
+import io.papermc.paper.event.player.PlayerInventorySlotChangeEvent;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
@@ -14,15 +15,11 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.*;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemHeldEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.*;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.MainHand;
 import org.bukkit.inventory.meta.CrossbowMeta;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -34,59 +31,38 @@ import org.bukkit.util.Vector;
 import java.util.*;
 
 public class Manager implements Listener {
-    Material MATERIAL = Material.CROSSBOW;
-    String NAME;
-    Component DISPLAY_NAME;
+    private final Material MATERIAL = Material.CROSSBOW;
+    private final MiniMessage mm = MiniMessage.miniMessage();
+    private final GravityGun plugin;
+    private final LanguageManager lang;
 
-    List<EntityType> list_entity_types;
-    List<Material> list_block_types;
+    // Параметры механики
+    private String configName;
+    private double range, pull_range, pull_force, launch_power;
+    private double hold_distance_min, hold_distance_max, hold_distance_step;
+    private double grab_cooldown, hold_max_time;
 
-    double range;
-    double pull_range;
-    double pull_force;
-    double launch_power;
-    double hold_distance_min;
-    double hold_distance_max;
-    double hold_distance_step;
-    double grab_cooldown;
-    double hold_max_time;
-
-    public enum ListMode {
-        BLACKLIST,
-        WHITELIST,
-        DISABLED;
-
+    public enum ListMode { BLACKLIST, WHITELIST, DISABLED;
         public static ListMode safeValueOf(String name) {
-            if (name == null) {
-                return ListMode.DISABLED;
-            }
-            try {
-                return ListMode.valueOf(name);
-            } catch (IllegalArgumentException e) {
-                return ListMode.DISABLED;
-            }
+            try { return valueOf(name.toUpperCase()); } catch (Exception e) { return DISABLED; }
         }
     }
 
-    ListMode list_entities_mode;
-    ListMode list_blocks_mode;
+    private ListMode list_entities_mode, list_blocks_mode;
+    private List<EntityType> list_entity_types;
+    private List<Material> list_block_types;
+    private boolean allow_grab_player, allow_grab_entities, allow_grab_blocks;
 
-    boolean allow_grab_player;
-
-    boolean allow_grab_entities;
-    boolean allow_grab_blocks;
-
-    NamespacedKey keyGravityGun = new NamespacedKey(GravityGun.getInstance(), "GravityGun");
-    NamespacedKey keyGG_is_holding = new NamespacedKey(GravityGun.getInstance(), "GG_is_holding");
-    NamespacedKey keyGG_vx = new NamespacedKey(GravityGun.getInstance(), "GG_vx");
-    NamespacedKey keyGG_vy = new NamespacedKey(GravityGun.getInstance(), "GG_vy");
-    NamespacedKey keyGG_vz = new NamespacedKey(GravityGun.getInstance(), "GG_vz");
-    NamespacedKey keyIsBlock = new NamespacedKey(GravityGun.getInstance(), "isBlock");
-    NamespacedKey keyBlockType = new NamespacedKey(GravityGun.getInstance(), "blockType");
-    NamespacedKey keyBlockData = new NamespacedKey(GravityGun.getInstance(), "blockData");
-    NamespacedKey keyInventoryData = new NamespacedKey(GravityGun.getInstance(), "inventoryData");
-
-    NamespacedKey keyGG_playerInteractBlock = new NamespacedKey(GravityGun.getInstance(), "GG_playerInteractBlock");
+    // Ключи данных
+    private final NamespacedKey keyGravityGun = new NamespacedKey(GravityGun.getInstance(), "GravityGun");
+    private final NamespacedKey keyGG_is_holding = new NamespacedKey(GravityGun.getInstance(), "GG_is_holding");
+    private final NamespacedKey keyGG_vx = new NamespacedKey(GravityGun.getInstance(), "GG_vx");
+    private final NamespacedKey keyGG_vy = new NamespacedKey(GravityGun.getInstance(), "GG_vy");
+    private final NamespacedKey keyGG_vz = new NamespacedKey(GravityGun.getInstance(), "GG_vz");
+    private final NamespacedKey keyIsBlock = new NamespacedKey(GravityGun.getInstance(), "isBlock");
+    private final NamespacedKey keyBlockType = new NamespacedKey(GravityGun.getInstance(), "blockType");
+    private final NamespacedKey keyBlockData = new NamespacedKey(GravityGun.getInstance(), "blockData");
+    private final NamespacedKey keyInventoryData = new NamespacedKey(GravityGun.getInstance(), "inventoryData");
 
     private final Map<Player, Entity> playerEntityMap = new HashMap<>();
     private final Map<Player, Location> playerEntityLocationMap = new HashMap<>();
@@ -96,11 +72,11 @@ public class Manager implements Listener {
     private final Map<Player, Long> playerGrabTime = new HashMap<>();
     private final Map<UUID, Long> invulnerableEntities = new HashMap<>();
 
-    static BukkitScheduler scheduler = Bukkit.getScheduler();
+    private static final BukkitScheduler scheduler = Bukkit.getScheduler();
     int taskId;
 
-    float task_i = 0.0F;
-    float task_i_sound_amb = 0.0F;
+    private float task_i = 0.0F;
+    private float task_i_sound_amb = 0.0F;
 
     public static <K, V> K getKeyByValue(Map<K, V> map, V value) {
         for (Map.Entry<K, V> entry : map.entrySet()) {
@@ -111,219 +87,251 @@ public class Manager implements Listener {
         return null;
     }
 
-    public void reload() {
-        this.NAME = GravityGun.getInstance().getConfig().getString("item.name", "Gravity Gun");
-        this.DISPLAY_NAME = Component.text(NAME).color(TextColor.fromHexString("#FFAA00"));
-
-        this.range = GravityGun.getInstance().getConfig().getDouble("mechanics.grab.range", 8.0D);
-        this.grab_cooldown = GravityGun.getInstance().getConfig().getDouble("mechanics.grab.cooldown", 0.3D);
-
-        this.pull_range = GravityGun.getInstance().getConfig().getDouble("mechanics.pull.range", 25.0D);
-        this.pull_force = GravityGun.getInstance().getConfig().getDouble("mechanics.pull.force", 0.6D);
-
-        this.launch_power = GravityGun.getInstance().getConfig().getDouble("mechanics.launch.power", 2.0D);
-
-        this.hold_distance_min = GravityGun.getInstance().getConfig().getDouble("mechanics.hold.distance.min", 1.0D);
-        this.hold_distance_max = GravityGun.getInstance().getConfig().getDouble("mechanics.hold.distance.max", 8.0D);
-        this.hold_distance_step = GravityGun.getInstance().getConfig().getDouble("mechanics.hold.distance.step", 1.0D);
-        this.hold_max_time = GravityGun.getInstance().getConfig().getDouble("mechanics.hold.max-time", 0.0D);
-
-        this.allow_grab_entities = GravityGun.getInstance().getConfig().getBoolean("limits.entities.allow-grab", true);
-        this.allow_grab_player = GravityGun.getInstance().getConfig().getBoolean("limits.entities.allow-grab-players", true);
-        this.list_entities_mode = ListMode.safeValueOf(GravityGun.getInstance().getConfig().getString("limits.entities.list-mode", "BLACKLIST").toUpperCase());
-        this.list_entity_types = GravityGun.getInstance().getConfig().getList("limits.entities.list", List.of(EntityType.ITEM_FRAME, EntityType.GLOW_ITEM_FRAME, EntityType.PAINTING)).stream().filter(e -> e instanceof EntityType).map(e -> (EntityType)e).toList();
-
-        this.allow_grab_blocks = GravityGun.getInstance().getConfig().getBoolean("limits.blocks.allow-grab", false);
-        this.list_blocks_mode = ListMode.safeValueOf(GravityGun.getInstance().getConfig().getString("limits.blocks.list-mode", "BLACKLIST").toUpperCase());
-        this.list_block_types = GravityGun.getInstance().getConfig().getList("limits.blocks.list", List.of(Material.BEDROCK)).stream().filter(e -> e instanceof Material).map(e -> (Material)e).toList();
-    }
-
     public Manager() {
+        this.plugin = GravityGun.getInstance();
+        this.plugin.getServer().getPluginManager().registerEvents(this, this.plugin);
+        this.lang = GravityGun.langManager;
         reload();
-        this.taskId = scheduler.runTaskTimer(GravityGun.getInstance(), () -> {
-            if (this.task_i > 5.0F) {
-                this.task_i = 0.0F;
-            } else {
-                ++this.task_i;
-            }
+        startTickTask();
+    }
 
-            if (this.task_i_sound_amb > 20.0F) {
-                this.task_i_sound_amb = 0.0F;
-            } else {
-                ++this.task_i_sound_amb;
-            }
+    public void reload() {
+        var config = GravityGun.getInstance().getConfig();
 
+        if (config.getString("item.name", "Gravity Gun") != "") {
+            config.set("item.gravity-gun.name", config.getString("item.name", "").replace("Gravity Gun", ""));
+            config.set("item.name", null);
+            config.setComments("item.gravity-gun.name", Collections.singletonList("If empty, it will use the default name from the language file"));
+            plugin.saveConfig();
+        }
 
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                if (this.playerEntityMap.containsKey(player)) {
-                    Location entityLocation = this.playerEntityLocationMap.get(player);
-                    Location eyeLocation = player.getEyeLocation();
-                    double radius = (new Location(player.getWorld(), 0.0D, 0.0D, 0.0D)).distance(entityLocation);
-                    double yawAngle = Math.toRadians((90.0F + eyeLocation.getYaw()));
-                    double pitchAngle = -Math.toRadians(eyeLocation.getPitch());
-                    double offsetX = radius * Math.cos(yawAngle) * Math.cos(pitchAngle);
-                    double offsetY = radius * Math.sin(pitchAngle);
-                    double offsetZ = radius * Math.sin(yawAngle) * Math.cos(pitchAngle);
-                    double newX = eyeLocation.getX() + offsetX;
-                    double newY = eyeLocation.getY() + offsetY;
-                    double newZ = eyeLocation.getZ() + offsetZ;
+        this.configName = config.getString("item.gravity-gun.name", "");
 
-                    float yaw = eyeLocation.getYaw();
-                    float pitch = entityLocation.getPitch();
+        this.range = config.getDouble("mechanics.grab.range", 8.0);
+        this.grab_cooldown = config.getDouble("mechanics.grab.cooldown", 0.3);
+        this.pull_range = config.getDouble("mechanics.pull.range", 25.0);
+        this.pull_force = config.getDouble("mechanics.pull.force", 0.6);
+        this.launch_power = config.getDouble("mechanics.launch.power", 2.0);
+        this.hold_distance_min = config.getDouble("mechanics.hold.distance.min", 1.0);
+        this.hold_distance_max = config.getDouble("mechanics.hold.distance.max", 8.0);
+        this.hold_distance_step = config.getDouble("mechanics.hold.distance.step", 1.0);
+        this.hold_max_time = config.getDouble("mechanics.hold.max-time", 0.0);
 
-                    Entity entity = this.playerEntityMap.get(player);
+        this.allow_grab_entities = config.getBoolean("limits.entities.allow-grab", true);
+        this.allow_grab_player = config.getBoolean("limits.entities.allow-grab-players", true);
+        this.list_entities_mode = ListMode.safeValueOf(config.getString("limits.entities.list-mode", "BLACKLIST"));
+        this.list_entity_types = config.getStringList("limits.entities.list").stream().map(s -> {
+            try { return EntityType.valueOf(s); } catch (Exception e) { return null; }
+        }).filter(Objects::nonNull).toList();
 
-                    if (entity instanceof Player) {
-                        yaw = ((Player) entity).getEyeLocation().getYaw();
-                        pitch = ((Player) entity).getEyeLocation().getPitch();
-                    }
-                    if (entity instanceof BlockDisplay) {
-                        yaw = 0;
-                        pitch = 0;
-                    }
-                    Location newLocation = new Location(player.getWorld(), newX, newY, newZ, yaw, pitch);
+        this.allow_grab_blocks = config.getBoolean("limits.blocks.allow-grab", true);
+        this.list_blocks_mode = ListMode.safeValueOf(config.getString("limits.blocks.list-mode", "BLACKLIST"));
+        this.list_block_types = config.getStringList("limits.blocks.list").stream().map(s -> {
+            try { return Material.valueOf(s); } catch (Exception e) { return null; }
+        }).filter(Objects::nonNull).toList();
 
-                    if (!canEntityTeleportSafely(entity, newLocation)) {
-                        double adjustedRadius = Math.max(hold_distance_min, radius - 0.5);
-                        double adjustedOffsetX = adjustedRadius * Math.cos(yawAngle) * Math.cos(pitchAngle);
-                        double adjustedOffsetY = adjustedRadius * Math.sin(pitchAngle);
-                        double adjustedOffsetZ = adjustedRadius * Math.sin(yawAngle) * Math.cos(pitchAngle);
-                        newLocation = new Location(player.getWorld(), eyeLocation.getX() + adjustedOffsetX, eyeLocation.getY() + adjustedOffsetY, eyeLocation.getZ() + adjustedOffsetZ, yaw, pitch);
+        updateHotbarItems();
+    }
 
-                        if (!canEntityTeleportSafely(entity, newLocation)) {
-                            continue;
-                        }
-                    }
+    /**
+     * Обновляет имена предметов во всех инвентарях согласно текущей локализации
+     */
+    private void updateHotbarItems() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            updateHotbarItems(player);
+        }
+    }
 
-                    Location oldLocation = entity.getLocation();
-                    double teleportDistance = newLocation.distance(oldLocation);
+    private void updateHotbarItems(Player player) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            updateGravityGun(item, player);
+        }
+    }
 
-
-                    if (teleportDistance > 2.0) {
-                        invulnerableEntities.put(entity.getUniqueId(), System.currentTimeMillis() + 1000);
-                    }
-
-                    (this.playerEntityMap.get(player)).teleportAsync(newLocation);
-                    PersistentDataContainer persistentDataContainer = (this.playerEntityMap.get(player)).getPersistentDataContainer();
-                    if (this.task_i == 0.0F) {
-                        (this.playerEntityMap.get(player)).setVelocity(new Vector(offsetX - (double)(Float)persistentDataContainer.get(this.keyGG_vx, PersistentDataType.FLOAT), offsetY - (double)(Float)persistentDataContainer.get(this.keyGG_vy, PersistentDataType.FLOAT), offsetZ - (double)(Float)persistentDataContainer.get(this.keyGG_vz, PersistentDataType.FLOAT)));
-                        persistentDataContainer.set(this.keyGG_vx, PersistentDataType.FLOAT, (float)offsetX);
-                        persistentDataContainer.set(this.keyGG_vy, PersistentDataType.FLOAT, (float)offsetY);
-                        persistentDataContainer.set(this.keyGG_vz, PersistentDataType.FLOAT, (float)offsetZ);
-                    }
-
-                    if (hold_max_time > 0) {
-                        long now = System.currentTimeMillis();
-                        long grabTime = playerGrabTime.get(player);
-                        if ((now - grabTime) > hold_max_time * 1000) {
-                            release(player);
-                        }
-                    }
-
-                    if (this.task_i_sound_amb == 0f) {
-                        player.getWorld().playSound(player, Sound.BLOCK_BEACON_AMBIENT, 1f, 1f);
-                    }
-
-                    double maxHoldDistance = hold_distance_max+5D;
-                    if (player.getLocation().distance(entity.getLocation()) > maxHoldDistance) {
-                        release(player);
-                        continue;
-                    }
-
+    private void updateGravityGun(ItemStack item, Player player) {
+        if (isGravityGun(item)) {
+            item.editMeta(meta -> {
+                if (configName != "") {
+                    meta.displayName(mm.deserialize(configName));
+                } else {
+                    // Если в конфиге пусто, берем из локализации игрока
+                    meta.displayName(lang.getMessage(player, "item.gravity-gun.name", "<gold>Gravity Gun"));
                 }
-            }
-
-        }, 1L, 1L).getTaskId();
+            });
+        }
     }
 
-    public boolean isAllowEntityType(EntityType type) {
-        if (list_entities_mode == ListMode.DISABLED) return true;
-        boolean contains = list_entity_types.contains(type);
-        if (list_entities_mode == ListMode.WHITELIST && contains) return true;
-        return list_entities_mode == ListMode.BLACKLIST && !contains;
-    }
-
-    public boolean isAllowMaterial(Material material) {
-        if (list_blocks_mode == ListMode.DISABLED) return true;
-        boolean contains = list_block_types.contains(material);
-        if (list_blocks_mode == ListMode.WHITELIST && contains) return true;
-        return list_blocks_mode == ListMode.BLACKLIST && !contains;
-    }
-
-    public ItemStack makeGravityGun() {
+    /**
+     * Создает предмет Грави-пушки для конкретного игрока
+     */
+    public ItemStack makeGravityGun(Player player) {
         ItemStack itemStack = new ItemStack(MATERIAL, 1);
         itemStack.editMeta(im -> {
-            CrossbowMeta cm = (CrossbowMeta)im;
-            CustomModelDataComponent customModelDataComponent = cm.getCustomModelDataComponent();
-            customModelDataComponent.setStrings(List.of("gravity-gun"));
-            cm.setCustomModelDataComponent(customModelDataComponent);
-            cm.displayName(DISPLAY_NAME);
+            if (im instanceof CrossbowMeta cm) {
+                CustomModelDataComponent cmd = cm.getCustomModelDataComponent();
+                cmd.setStrings(List.of("gravity-gun"));
+                cm.setCustomModelDataComponent(cmd);
+            }
+            im.getPersistentDataContainer().set(this.keyGravityGun, PersistentDataType.BOOLEAN, true);
         });
-        itemStack.editPersistentDataContainer(pdc -> {
-            pdc.set(this.keyGravityGun, PersistentDataType.BOOLEAN, true);
-        });
+        updateGravityGun(itemStack, player);
         return itemStack;
     }
 
     public void giveTool(Player player) {
-        player.getInventory().addItem(makeGravityGun());
+        player.getInventory().addItem(makeGravityGun(player));
     }
 
     private boolean isGravityGun(ItemStack item) {
-        if (item == null) return false;
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return false;
-        return meta.getPersistentDataContainer().has(keyGravityGun, PersistentDataType.BOOLEAN);
+        if (item == null || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(keyGravityGun, PersistentDataType.BOOLEAN);
+    }
+
+    private void startTickTask() {
+        taskId = scheduler.runTaskTimer(GravityGun.getInstance(), () -> {
+            task_i = (task_i >= 5.0F) ? 0.0F : task_i + 1.0F;
+            task_i_sound_amb = (task_i_sound_amb >= 20.0F) ? 0.0F : task_i_sound_amb + 1.0F;
+
+            playerEntityMap.forEach((player, entity) -> {
+                if (entity == null || !entity.isValid()) return;
+
+                Location offset = this.playerEntityLocationMap.get(player);
+                Location eye = player.getEyeLocation();
+
+                double radius = (new Location(player.getWorld(), 0, 0, 0)).distance(offset);
+                double yawRad = Math.toRadians(90.0 + eye.getYaw());
+                double pitchRad = -Math.toRadians(eye.getPitch());
+
+                double ox = radius * Math.cos(yawRad) * Math.cos(pitchRad);
+                double oy = radius * Math.sin(pitchRad);
+                double oz = radius * Math.sin(yawRad) * Math.cos(pitchRad);
+
+                float yaw = (entity instanceof Player p) ? p.getEyeLocation().getYaw() : eye.getYaw();
+                float pitch = (entity instanceof Player p) ? p.getEyeLocation().getPitch() : 0;
+
+                Location targetLoc = new Location(player.getWorld(), eye.getX() + ox, eye.getY() + oy, eye.getZ() + oz, yaw, pitch);
+
+                if (!canEntityTeleportSafely(entity, targetLoc)) {
+                    double safeRad = Math.max(hold_distance_min, radius - 0.5);
+                    targetLoc = eye.clone().add(eye.getDirection().multiply(safeRad));
+                    if (!canEntityTeleportSafely(entity, targetLoc)) return;
+                }
+
+                if (targetLoc.distance(entity.getLocation()) > 2.0) {
+                    invulnerableEntities.put(entity.getUniqueId(), System.currentTimeMillis() + 1000);
+                }
+
+                entity.teleportAsync(targetLoc);
+
+                if (task_i == 0.0F) {
+                    PersistentDataContainer pdc = entity.getPersistentDataContainer();
+                    entity.setVelocity(new Vector(ox - pdc.getOrDefault(keyGG_vx, PersistentDataType.FLOAT, (float)ox),
+                            oy - pdc.getOrDefault(keyGG_vy, PersistentDataType.FLOAT, (float)oy),
+                            oz - pdc.getOrDefault(keyGG_vz, PersistentDataType.FLOAT, (float)oz)));
+                    pdc.set(keyGG_vx, PersistentDataType.FLOAT, (float)ox);
+                    pdc.set(keyGG_vy, PersistentDataType.FLOAT, (float)oy);
+                    pdc.set(keyGG_vz, PersistentDataType.FLOAT, (float)oz);
+                }
+
+                if (hold_max_time > 0 && (System.currentTimeMillis() - playerGrabTime.get(player)) > hold_max_time * 1000) {
+                    release(player);
+                }
+
+                if (task_i_sound_amb == 0) player.getWorld().playSound(player, Sound.BLOCK_BEACON_AMBIENT, 0.5f, 1.5f);
+                if (player.getLocation().distance(entity.getLocation()) > hold_distance_max + 5.0) release(player);
+            });
+        }, 1L, 1L).getTaskId();
+    }
+
+    private boolean canEntityTeleportSafely(Entity entity, Location location) {
+        if (entity == null || location == null) return false;
+        double w = entity.getWidth(), h = entity.getHeight();
+        for (double x = -w/2; x <= w/2; x += 0.5) {
+            for (double y = 0; y <= h; y += 0.5) {
+                for (double z = -w/2; z <= w/2; z += 0.5) {
+                    if (location.clone().add(x, y, z).getBlock().isSolid()) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // --- Обработка событий ---
+
+    // Прокрутка колесом мыши
+    @EventHandler
+    public void onHeld(PlayerItemHeldEvent event) {
+        Player player = event.getPlayer();
+        if (!playerEntityMap.containsKey(player)) return;
+
+        int diff = event.getNewSlot() - event.getPreviousSlot();
+        if (diff == 0) return;
+        // Обработка прокрутки через край (0 -> 8 или 8 -> 0)
+        if (diff > 5) diff = -1; else if (diff < -5) diff = 1;
+
+        event.setCancelled(true);
+        Location offset = playerEntityLocationMap.get(player);
+        double dist = new Location(player.getWorld(), 0,0,0).distance(offset);
+        double newDist = Math.max(hold_distance_min, Math.min(hold_distance_max, dist + (diff > 0 ? -1 : 1) * hold_distance_step));
+
+        offset.multiply(newDist / dist);
     }
 
     @EventHandler
-    void PlayerItemHeldEvent(PlayerItemHeldEvent event) {
+    public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        if (this.playerEntityMap.containsKey(player)) {
-            boolean left_key = event.getPreviousSlot() > event.getNewSlot();
-            boolean right_key = event.getPreviousSlot() < event.getNewSlot();
-            if (Math.abs(event.getPreviousSlot() - event.getNewSlot()) > 4) {
-                boolean temp = left_key;
-                left_key = right_key;
-                right_key = temp;
-            }
-            ItemStack oldItem = player.getInventory().getItem(event.getPreviousSlot());
-            if (oldItem != null) {
-                if ((left_key || right_key)) {
-                    if (isGravityGun(oldItem)) {
-                        event.setCancelled(true);
-                        Location entityLocation = this.playerEntityLocationMap.get(player);
-                        double current_radius = new Location(player.getWorld(), 0.0D, 0.0D, 0.0D).distance(entityLocation);
-                        double delta = left_key ? 1.0 : -1.0;
-                        double step = hold_distance_step;
-                        double new_radius = current_radius + delta * step;
-                        new_radius = Math.max(hold_distance_min, Math.min(hold_distance_max, new_radius));
+        if (event.getHand() == EquipmentSlot.OFF_HAND) return;
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (!isGravityGun(item)) return;
 
-                        // Проверяем коллизию для новой позиции
-                        Location eyeLocation = player.getEyeLocation();
-                        double yawAngle = Math.toRadians((90.0F + eyeLocation.getYaw()));
-                        double pitchAngle = -Math.toRadians(eyeLocation.getPitch());
-                        double offsetX = new_radius * Math.cos(yawAngle) * Math.cos(pitchAngle);
-                        double offsetY = new_radius * Math.sin(pitchAngle);
-                        double offsetZ = new_radius * Math.sin(yawAngle) * Math.cos(pitchAngle);
-                        Location newLocation = new Location(player.getWorld(), eyeLocation.getX() + offsetX, eyeLocation.getY() + offsetY, eyeLocation.getZ() + offsetZ, eyeLocation.getYaw(), entityLocation.getPitch());
+        event.setCancelled(true);
 
-                        Entity entity = this.playerEntityMap.get(player);
-                        if (!canEntityTeleportSafely(entity, newLocation)) {
-                            return;
-                        }
+        long now = System.currentTimeMillis();
+        if (playerLastGrabTime.getOrDefault(player, 0L) + 200 > now) return;
 
-                        double scale = new_radius / current_radius;
-                        if (current_radius != 0) {
-                            entityLocation.setX(entityLocation.getX() * scale);
-                            entityLocation.setY(entityLocation.getY() * scale);
-                            entityLocation.setZ(entityLocation.getZ() * scale);
-                        }
+        boolean left_key = event.getAction() == Action.LEFT_CLICK_AIR || event.getAction() == Action.LEFT_CLICK_BLOCK || event.getAction().isLeftClick();
+        boolean right_key = event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction().isRightClick();
+
+        if (playerEntityMap.containsKey(player)) {
+            if (left_key) launch(player); else release(player);
+            playerLastGrabTime.put(player, now);
+            return;
+        }
+
+        if (right_key) {
+            RayTraceResult res = player.getWorld().rayTrace(player.getEyeLocation(), player.getEyeLocation().getDirection(), range, FluidCollisionMode.NEVER, true, 0.5, e -> e != player);
+            if (res != null) {
+                if (res.getHitEntity() != null) {
+                    Entity hit = res.getHitEntity();
+                    if (isValidTarget(hit)) grab(player, hit, item);
+                } else if (res.getHitBlock() != null && allow_grab_blocks && isAllowMaterial(res.getHitBlock().getType())) {
+                    grabBlock(player, res.getHitBlock(), item);
+                    return;
+                }
+            } else {
+                // Попытка притягивания (Pull)
+                RayTraceResult pullRes = player.getWorld().rayTraceEntities(player.getEyeLocation(), player.getEyeLocation().getDirection(), pull_range, 1.0, e -> e != player && isValidTarget(e));
+                if (pullRes != null && pullRes.getHitEntity() != null) {
+                    pull(pullRes.getHitEntity(), player);
+                    return;
+                } else {
+                    RayTraceResult entityRes = player.getWorld().rayTraceEntities(player.getEyeLocation(), player.getEyeLocation().getDirection(), range, 1.0, e -> e != player && isValidTarget(e));
+                    if (entityRes != null && entityRes.getHitEntity() != null) {
+                        grab(player, entityRes.getHitEntity(), item);
+                        playerLastGrabTime.put(player, now);
+                        return;
                     }
                 }
 
             }
         }
+        player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1f, 0f);
+    }
+
+    private boolean isValidTarget(Entity e) {
+        if (e instanceof Player && !allow_grab_player) return false;
+        if (!allow_grab_entities) return false;
+        return isAllowEntityType(e.getType());
     }
 
     void grab(Player player, Entity entity, ItemStack gravityGun) {
@@ -334,39 +342,72 @@ public class Manager implements Listener {
         playerLastGrabTime.put(player, now);
         playerGrabTime.put(player, now);
 
+        if (entity.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN)) {
+            if (entity.getPersistentDataContainer().get(keyIsBlock, PersistentDataType.BOOLEAN)) {
+                if (entity instanceof FallingBlock fallingBlock) {
+                    PersistentDataContainer pdc_fb = fallingBlock.getPersistentDataContainer();
+
+                    BlockDisplay blockDisplay = fallingBlock.getWorld().spawn(fallingBlock.getLocation().toCenterLocation(), BlockDisplay.class, d -> {
+                        d.setBlock(fallingBlock.getBlockData());
+                        Transformation t = d.getTransformation();
+                        t.getTranslation().set(-0.5, -0.5, -0.5);
+                        d.setTransformation(t);
+                    });
+                    blockDisplay.setInterpolationDelay(0);
+                    blockDisplay.setInterpolationDuration(999999);
+
+                    PersistentDataContainer pdc = blockDisplay.getPersistentDataContainer();
+                    pdc.set(keyIsBlock, PersistentDataType.BOOLEAN, true);
+                    pdc.set(keyGG_is_holding, PersistentDataType.BOOLEAN, true);
+                    pdc.set(keyBlockType, PersistentDataType.STRING, pdc_fb.get(keyBlockType, PersistentDataType.STRING));
+                    pdc.set(keyBlockData, PersistentDataType.STRING, pdc_fb.get(keyBlockData, PersistentDataType.STRING));
+                    if (pdc_fb.has(keyInventoryData, PersistentDataType.STRING)) {
+                        if (pdc_fb.get(keyInventoryData, PersistentDataType.STRING) != null) {
+                            pdc.set(keyInventoryData, PersistentDataType.STRING, pdc_fb.get(keyInventoryData, PersistentDataType.STRING));
+                        }
+                    }
+
+                    fallingBlock.remove();
+                    entity = blockDisplay;
+                }
+            }
+        }
+
         Location eyeLocation = player.getEyeLocation();
-        this.playerEntityLocationMap.put(player, new Location(player.getWorld(), eyeLocation.getX() - entity.getX(), eyeLocation.getY() - entity.getY(), eyeLocation.getZ() - entity.getZ(), eyeLocation.getYaw() - entity.getYaw(), eyeLocation.getPitch() - entity.getPitch()));
+        Location entityLocation = player.getLocation();
+        playerEntityLocationMap.put(player, new Location(player.getWorld(), entityLocation.getX() - eyeLocation.getX(), entityLocation.getY() - eyeLocation.getY(), entityLocation.getZ() - eyeLocation.getZ()));
         PersistentDataContainer persistentDataContainer = entity.getPersistentDataContainer();
         persistentDataContainer.set(this.keyGG_vx, PersistentDataType.FLOAT, 0.0F);
         persistentDataContainer.set(this.keyGG_vy, PersistentDataType.FLOAT, 0.0F);
         persistentDataContainer.set(this.keyGG_vz, PersistentDataType.FLOAT, 0.0F);
         this.playerEntityMap.put(player, entity);
         originalGravity.put(entity.getUniqueId(), entity.hasGravity());
-        if (entity instanceof LivingEntity) {
-            originalCollectable.put(entity.getUniqueId(), ((LivingEntity) entity).isCollidable());
-            ((LivingEntity) entity).setCollidable(false);
-            entity.setFallDistance(0);
+        if (entity instanceof LivingEntity le) {
+            originalCollectable.put(le.getUniqueId(), le.isCollidable());
+            le.setCollidable(false);
+            le.setFallDistance(0);
         }
         entity.setGravity(false);
         entity.setVelocity(new Vector(0, 0, 0));
 
         gravityGun.editMeta(im -> {
-            CrossbowMeta cm = (CrossbowMeta)im;
-            cm.addChargedProjectile(ItemStack.of(Material.FIREWORK_ROCKET));
-            CustomModelDataComponent customModelDataComponent = cm.getCustomModelDataComponent();
-            customModelDataComponent.setStrings(List.of("gravity-gun-blue"));
-            cm.setCustomModelDataComponent(customModelDataComponent);
+            if (im instanceof CrossbowMeta cm) {
+                cm.addChargedProjectile(new ItemStack(Material.FIREWORK_ROCKET));
+                CustomModelDataComponent cmd = cm.getCustomModelDataComponent();
+                cmd.setStrings(List.of("gravity-gun-blue"));
+                cm.setCustomModelDataComponent(cmd);
+            }
         });
         gravityGun.editPersistentDataContainer(pdc -> {
             pdc.set(keyGG_is_holding, PersistentDataType.BOOLEAN, true);
         });
-
-        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1f, 0.1f);
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1f, 0.5f);
     }
 
     void pull(Entity entity, Player player) {
-        Vector direction = player.getLocation().subtract(entity.getLocation()).toVector().normalize();
-        entity.setVelocity(direction.multiply(pull_force));
+        Vector vec = player.getLocation().toVector().subtract(entity.getLocation().toVector()).normalize().multiply(pull_force);
+        entity.setVelocity(vec);
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_HIT, 1f, 2f);
     }
 
     private void grabBlock(Player player, Block block, ItemStack gravityGun) {
@@ -378,11 +419,13 @@ public class Manager implements Listener {
             config.set("inventory", Arrays.asList(inv.getContents()));
             inventoryData = config.saveToString();
         }
-        BlockDisplay blockDisplay = block.getWorld().spawn(block.getLocation(), BlockDisplay.class, bd -> {
-            bd.setBlock(block.getBlockData());
-            Transformation transformation = bd.getTransformation();
-            transformation.getTranslation().set(-0.5f, -0.5f, -0.5f);
-            bd.setTransformation(transformation);
+
+        BlockData data = block.getBlockData();
+        BlockDisplay blockDisplay = block.getWorld().spawn(block.getLocation().toCenterLocation(), BlockDisplay.class, d -> {
+            d.setBlock(data);
+            Transformation t = d.getTransformation();
+            t.getTranslation().set(-0.5, -0.5, -0.5);
+            d.setTransformation(t);
         });
         blockDisplay.setInterpolationDelay(0);
         blockDisplay.setInterpolationDuration(999999);
@@ -391,64 +434,52 @@ public class Manager implements Listener {
         pdc.set(keyIsBlock, PersistentDataType.BOOLEAN, true);
         pdc.set(keyGG_is_holding, PersistentDataType.BOOLEAN, true);
         pdc.set(keyBlockType, PersistentDataType.STRING, block.getType().name());
-        pdc.set(keyBlockData, PersistentDataType.STRING, block.getBlockData().getAsString());
+        pdc.set(keyBlockData, PersistentDataType.STRING, data.getAsString());
         if (inventoryData != null) {
             pdc.set(keyInventoryData, PersistentDataType.STRING, inventoryData);
         }
-        block.setType(Material.AIR);
 
+        block.setType(Material.AIR);
         grab(player, blockDisplay, gravityGun);
     }
 
-
-    private boolean canEntityTeleportSafely(Entity entity, Location location) {
-        if (entity == null || location == null || location.getWorld() == null) return false;
-
-        // Создаем bounding box entity в новой позиции
-        double width = entity.getWidth();
-        double height = entity.getHeight();
-
-        // Проверяем блоки в области bounding box
-        for (double x = -width/2; x <= width/2; x += 0.5) {
-            for (double y = 0; y <= height; y += 0.5) {
-                for (double z = -width/2; z <= width/2; z += 0.5) {
-                    Location checkLoc = location.clone().add(x, y, z);
-                    if (checkLoc.getBlock().isSolid()) {
-                        return false;
-                    }
-                }
-            }
+    private void launch(Player player) {
+        Entity e = release(player);
+        if (e != null) {
+            e.setVelocity(player.getEyeLocation().getDirection().multiply(launch_power));
+            player.getWorld().playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1f, 0.5f);
         }
-
-        return true;
+    }
+    private void launch(Player player, Entity entity) {
+        if (entity != null) {
+            entity.setVelocity(player.getEyeLocation().getDirection().multiply(launch_power));
+            player.getWorld().playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1f, 0.5f);
+        }
     }
 
     Entity release(Player player) {
         if (!this.playerEntityMap.containsKey(player)) return null;
         ItemStack item = player.getInventory().getItemInMainHand();
 
-        Entity entity = this.playerEntityMap.get(player);
+        Entity entity = this.playerEntityMap.remove(player);
+        if (entity == null) return null;
 
-        this.playerEntityMap.remove(player);
-        this.playerEntityLocationMap.remove(player);
-        playerGrabTime.remove(player);
-        Boolean g = originalGravity.remove(entity.getUniqueId());
-        Boolean c = originalCollectable.remove(entity.getUniqueId());
+        playerEntityLocationMap.remove(player);
+        entity.setGravity(originalGravity.getOrDefault(entity.getUniqueId(), true));
+        if (entity instanceof LivingEntity le) le.setCollidable(originalCollectable.getOrDefault(le.getUniqueId(), true));
         invulnerableEntities.remove(entity.getUniqueId()); // Удаляем из списка неуязвимых
 
-        if (g != null) entity.setGravity(g);
-        if (c != null && entity instanceof LivingEntity) ((LivingEntity) entity).setCollidable(c);
-        if (entity instanceof LivingEntity) {
-            entity.setFallDistance(0f);
+        if (isGravityGun(item)) {
+            item.editMeta(im -> {
+                if (im instanceof CrossbowMeta cm) {
+                    cm.setChargedProjectiles(null);
+                    CustomModelDataComponent cmd = cm.getCustomModelDataComponent();
+                    cmd.setStrings(List.of("gravity-gun"));
+                    cm.setCustomModelDataComponent(cmd);
+                }
+            });
         }
 
-        item.editMeta(im -> {
-            CrossbowMeta cm = (CrossbowMeta)im;
-            cm.setChargedProjectiles(null);
-            CustomModelDataComponent customModelDataComponent = cm.getCustomModelDataComponent();
-            customModelDataComponent.setStrings(List.of("gravity-gun"));
-            cm.setCustomModelDataComponent(customModelDataComponent);
-        });
         PersistentDataContainer pdc = entity.getPersistentDataContainer();
         pdc.set(keyGG_is_holding, PersistentDataType.BOOLEAN, false);
 
@@ -480,132 +511,18 @@ public class Manager implements Listener {
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1f, 2f);
         return entity;
     }
+    public void releaseAll() { new HashSet<>(playerEntityMap.keySet()).forEach(this::release); }
 
-    void releaseAll() {
-        for (Player player : playerEntityMap.keySet()) {
-            release(player);
-        }
+    private boolean isAllowEntityType(EntityType type) {
+        if (list_entities_mode == ListMode.DISABLED) return true;
+        boolean contains = list_entity_types.contains(type);
+        return list_entities_mode == ListMode.WHITELIST ? contains : !contains;
     }
 
-    void launch(Player player) {
-        if (!this.playerEntityMap.containsKey(player)) return;
-        Entity entity = release(player);
-        entity.setVelocity(player.getLocation().getDirection().multiply(this.launch_power));
-        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1f, 0f);
-    }
-
-    void launch(Player player, Entity entity) {
-        entity.setVelocity(player.getLocation().getDirection().multiply(this.launch_power));
-        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1f, 0f);
-    }
-
-    @EventHandler
-    void onPlayerInteractEvent(PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-        if (event.getHand() == EquipmentSlot.OFF_HAND) return;
-        boolean holdingGG = isGravityGun(player.getInventory().getItemInMainHand());
-        if (!holdingGG) return;
-
-        if (this.playerEntityMap.containsKey(player)) {
-            event.setCancelled(true);
-        }
-        if (!player.getPersistentDataContainer().has(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN)) { player.getPersistentDataContainer().set(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN, false); }
-        if (player.getPersistentDataContainer().get(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN)) {
-            return;
-        }
-
-
-
-        long now = System.currentTimeMillis();
-        if (playerLastGrabTime.containsKey(player) && (now - playerLastGrabTime.get(player)) < 150) return;
-
-        player.getPersistentDataContainer().set(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN, true);
-        boolean left_key = event.getAction().equals(Action.LEFT_CLICK_AIR) || event.getAction().equals(Action.LEFT_CLICK_BLOCK) || event.getAction().isLeftClick();
-        boolean right_key = event.getAction().equals(Action.RIGHT_CLICK_AIR) || event.getAction().equals(Action.RIGHT_CLICK_BLOCK) || event.getAction().isRightClick();
-        if ((left_key || right_key) && isGravityGun(player.getInventory().getItemInMainHand())) {
-            ItemStack item = player.getInventory().getItemInMainHand();
-            event.setCancelled(true);
-            if (this.playerEntityMap.containsKey(player)) {
-                if (left_key) {
-                    launch(player);
-                } else {
-                    release(player);
-                }
-            } else {
-                Vector direction = player.getLocation().getDirection();
-                if (right_key) {
-                    // Сначала проверить сущности в range
-                    RayTraceResult entityResult = player.getWorld().rayTraceEntities(player.getEyeLocation(), direction, this.range, 1.0D, (entityx) -> {
-                        return entityx != player && (entityx instanceof LivingEntity || entityx instanceof Projectile || entityx instanceof Item || entityx instanceof FallingBlock || entityx instanceof ItemDisplay);
-                    });
-                    if (entityResult != null) {
-                        Entity hitEntity = entityResult.getHitEntity();
-                        assert hitEntity != null;
-                        boolean isCustomBlock = hitEntity instanceof FallingBlock && hitEntity.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN);
-                        if (isCustomBlock) {
-                            FallingBlock fb = (FallingBlock) hitEntity;
-                            PersistentDataContainer pdc = fb.getPersistentDataContainer();
-                            String rawData = pdc.get(keyBlockData, PersistentDataType.STRING);
-
-                            if (rawData != null) {
-                                BlockData data = Bukkit.createBlockData(rawData);
-                                BlockDisplay blockDisplay = hitEntity.getWorld().spawn(hitEntity.getLocation(), BlockDisplay.class, bd -> {
-                                    bd.setBlock(data);
-                                    Transformation transformation = bd.getTransformation();
-                                    transformation.getTranslation().set(-0.5f, -0.5f, -0.5f);
-                                    bd.setTransformation(transformation);
-                                });
-
-                                PersistentDataContainer newPdc = blockDisplay.getPersistentDataContainer();
-                                newPdc.set(keyIsBlock, PersistentDataType.BOOLEAN, true);
-                                newPdc.set(keyBlockType, PersistentDataType.STRING, pdc.get(keyBlockType, PersistentDataType.STRING));
-                                newPdc.set(keyBlockData, PersistentDataType.STRING, rawData);
-                                if (pdc.has(keyInventoryData, PersistentDataType.STRING)) {
-                                    newPdc.set(keyInventoryData, PersistentDataType.STRING, pdc.get(keyInventoryData, PersistentDataType.STRING));
-                                }
-
-                                hitEntity.remove();
-                                grab(player, blockDisplay, player.getInventory().getItemInMainHand());
-                            }
-                        } else if (isAllowEntityType(hitEntity.getType()) && (allow_grab_player || !(hitEntity instanceof Player))) {
-                            grab(player, hitEntity, item);
-                            player.getPersistentDataContainer().set(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN, false);
-                            return;
-                        }
-                    }
-
-                    // Проверить блоки
-                    RayTraceResult blockResult = player.getWorld().rayTraceBlocks(player.getEyeLocation(), direction, this.range);
-                    if (blockResult != null) {
-                        Block hitBlock = blockResult.getHitBlock();
-                        assert hitBlock != null;
-                        if (isAllowMaterial(hitBlock.getType()) && allow_grab_blocks) {
-                            grabBlock(player, hitBlock, item);
-                            player.getPersistentDataContainer().set(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN, false);
-                            return;
-                        }
-                    }
-
-                    // Если в основном радиусе ничего нет, проверяем расширенный радиус для потягивания
-                    RayTraceResult pullResult = player.getWorld().rayTraceEntities(player.getEyeLocation(), direction, this.pull_range, 1.0D, (entityx) -> {
-                        return entityx != player && (entityx instanceof LivingEntity || entityx instanceof Projectile || entityx instanceof Item || entityx instanceof FallingBlock || entityx instanceof ItemDisplay);
-                    });
-                    if (pullResult != null) {
-                        Entity hitEntity = pullResult.getHitEntity();
-                        assert hitEntity != null;
-                        if (isAllowEntityType(hitEntity.getType()) && (allow_grab_player || !(hitEntity instanceof Player))) {
-                            pull(hitEntity, player);
-                            player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1f, 1.5f);
-                            player.getPersistentDataContainer().set(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN, false);
-                            return;
-                        }
-                    }
-
-                    player.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, 1f, 0f);
-                }
-            }
-        }
-        player.getPersistentDataContainer().set(keyGG_playerInteractBlock, PersistentDataType.BOOLEAN, false);
+    private boolean isAllowMaterial(Material mat) {
+        if (list_blocks_mode == ListMode.DISABLED) return true;
+        boolean contains = list_block_types.contains(mat);
+        return list_blocks_mode == ListMode.WHITELIST ? contains : !contains;
     }
 
     @EventHandler
@@ -650,7 +567,7 @@ public class Manager implements Listener {
         }
     }
 
-    @EventHandler public void onQuit(PlayerQuitEvent e)  { release(e.getPlayer()); }
+    @EventHandler void onQuit(PlayerQuitEvent e) { release(e.getPlayer()); }
     @EventHandler public void onDeath(PlayerDeathEvent e) {
         if (playerEntityMap.containsValue(e.getEntity())) {
             for (Map.Entry<Player, Entity> entry : playerEntityMap.entrySet()) {
@@ -716,5 +633,30 @@ public class Manager implements Listener {
 
         event.setCancelled(true);
         restoreBlock(fb, fb.getLocation().getBlock());
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        updateHotbarItems(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onLocaleChange(PlayerLocaleChangeEvent event) {
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            updateHotbarItems(event.getPlayer());
+        }, 3L);
+    }
+
+    @EventHandler
+    public void onPlayerInventorySlotChangeEvent(PlayerInventorySlotChangeEvent event) {
+        updateGravityGun(event.getNewItemStack(), event.getPlayer());
+        updateGravityGun(event.getOldItemStack(), event.getPlayer());
+    }
+
+    @EventHandler
+    public void onEntityPickupItemEvent(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            updateGravityGun(event.getItem().getItemStack(), player);
+        }
     }
 }

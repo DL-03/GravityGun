@@ -1,7 +1,8 @@
 version: 1
 
 item:
-  name: "Gravity Gun"
+  gravity-gun:
+    name: ""  # If empty, it will use the default name from the language file
 
 mechanics:
   grab:
@@ -34,7 +35,7 @@ limits:
       - PAINTING
 
   blocks:
-    allow-grab: false
+    allow-grab: true
 
     list-mode: BLACKLIST  # BLACKLIST or WHITELIST or DISABLED
     list:

@@ -1,55 +1,56 @@
 package me.dl.GravityGun;
 
 import com.google.common.collect.Lists;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
 
 public class Commands extends AbstractCommand {
+    private final GravityGun plugin;
+    private final LanguageManager lang;
+
     public Commands() {
         super("gg");
+        this.plugin = GravityGun.getInstance();
+        this.lang = GravityGun.langManager;
     }
 
     public void execute(CommandSender sender, String label, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            sender.sendMessage(Component.text("/gg help").color(NamedTextColor.GOLD).clickEvent(ClickEvent.runCommand("/gg help")).append(Component.text(" - show this help").color(NamedTextColor.WHITE)));
-            sender.sendMessage(Component.text("/gg reload").color(NamedTextColor.GOLD).clickEvent(ClickEvent.runCommand("/gg reload")).append(Component.text(" - reload the plugin configuration").color(NamedTextColor.WHITE)));
-            sender.sendMessage(Component.text("/gg give [player]").color(NamedTextColor.GOLD).clickEvent(ClickEvent.runCommand("/gg give")).append(Component.text(" - give the gravity gun to yourself or another player").color(NamedTextColor.WHITE)));
+            sender.sendMessage(lang.getMessage(sender, "message.gg.help", "Help message"));
         } else if (args[0].equalsIgnoreCase("reload")) {
             if (!sender.hasPermission("gravity-gun.reload")) {
-                sender.sendMessage("You do not have permission to do this");
+                sender.sendMessage(lang.getMessage(sender, "message.no-permission", "No permission"));
             } else {
                 GravityGun.getInstance().reload();
-                sender.sendMessage("Configuration reloaded");
+                sender.sendMessage(lang.getMessage(sender, "message.config-reloaded", "Config reloaded"));
             }
         } else if (args[0].equalsIgnoreCase("give")) {
             Player player;
             if (!sender.hasPermission("gravity-gun.give")) {
-                sender.sendMessage("You do not have permission to do this");
+                sender.sendMessage(lang.getMessage(sender, "message.no-permission", "No permission"));
                 return;
             }
             if (args.length > 1) {
-                player = GravityGun.getInstance().getServer().getPlayer(args[1]);
+                player = plugin.getServer().getPlayer(args[1]);
                 if (player == null) {
-                    sender.sendMessage("Player " + args[1] + " not found");
+                    sender.sendMessage(lang.getMessage(sender, "message.unknown-player", "Unknown player: <player>", Placeholder.parsed("player", args[1])));
                     return;
                 }
             } else {
                 if (!(sender instanceof Player)) {
-                    sender.sendMessage("The console cannot use this command");
+                    sender.sendMessage(lang.getMessage(lang.serverLanguage, "message.console-cant-use-command", "Console can`t"));
                     return;
                 }
                 player = (Player) sender;
             }
 
             GravityGun.manager.giveTool(player);
-            sender.sendMessage("You gave " + player.getName() + " the gravity gun");
+            sender.sendMessage(lang.getMessage(sender, "message.gg.give.success", "Gravity Gun given: <player>", Placeholder.parsed("player", player.getName())));
         } else {
-            sender.sendMessage("Unknown command. Use /gg help for help");
+            sender.sendMessage(lang.getMessage(sender, "message.gg.unknown-command", "Unknown command"));
         }
     }
 

@@ -6,7 +6,7 @@
 
     <groupId>me.dl</groupId>
     <artifactId>gravity-gun</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.0</version>
     <packaging>jar</packaging>
 
     <name>gravity-gun</name>
@@ -14,6 +14,8 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <lang.version>v1</lang.version>
     </properties>
 
     <build>
@@ -21,6 +23,18 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+            </resource>
+
+            <resource>
+                <!-- Путь к папке с конкретной версией переводов -->
+                <directory>lang_files/${lang.version}</directory>
+                <!-- Куда поместить внутри JAR (в папку lang, как ожидает LanguageManager) -->
+                <targetPath>lang</targetPath>
+                <includes>
+                    <include>*.yml</include>
+                </includes>
+                <!-- Фильтрация не нужна для YAML файлов, чтобы не побить кодировку -->
+                <filtering>false</filtering>
             </resource>
         </resources>
         <plugins>
