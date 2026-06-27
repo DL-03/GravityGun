@@ -40,3 +40,5 @@ For resource packs, there is the option to attach a model and texture to a cross
     }
 }
 ```
+
+![bStats Servers](https://bstats.org/signatures/bukkit/GravityGun.svg)
