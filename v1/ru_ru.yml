@@ -1,15 +1,33 @@
-version: 1
+version: 2
 
 item.gravity-gun.name: "<gold>Гравитационная пушка"
 
-message.config-reloaded: "<green>Конфигурация перезагружена"
+message.config-reloaded: "<gray>[<gold>GG</gold>]</gray> <green>Конфигурация перезагружена"
 message.no-permission: "<red>У вас нет разрешения на использование этой команды"
 message.console-cant-use-command: "<red>Консоль не может использовать эту команду"
 message.unknown-player: "<red>Игрок <player> не найден"
+message.players-not-found: "<red>Игроки не найдены"
 
-message.gg.unknown-command: "<red>Неизвестная команда. Используйте <click:run_command:'/gg help'><gold>/gg help</click> для просмотра списка команд."
-message.gg.give.success: "<green>Вы дали <player> гравитационную пушку"
+message.update-checker.tag-not-found: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <red>Не удалось найти тег версии в ответе GitHub.</red>"
+message.update-checker.unsecceed-tag-check: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <red>Не удалось проверить обновления. Код ответа GitHub: <code></red>"
+message.update-checker.error-while-checking-updates: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <red>Ошибка при попытке проверить обновления: <message></red>"
+
+message.update-checker.no-updates: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <green>Вы используете самую свежую версию плагина: <current-version></green>"
+
+message.update-checker.update-available: "
+====================================================\n
+Доступно обновление для плагина GravityGun!\n
+Текущая версия: <current-version>\n
+Новая версия: <new-version>\n
+Скачать: <link>\n
+====================================================
+"
+
+message.gg.unknown-command: "<gray>[<gold>GG</gold>]</gray> <red>Неизвестная команда. Используйте <click:run_command:'/gg help'><gold>/gg help</click> для просмотра списка команд."
+message.gg.give.success: "<gray>[<gold>GG</gold>]</gray> <green>Вы дали <player> гравитационную пушку"
+message.gg.fix.success: "<gray>[<gold>GG</gold>]</gray> <green>Игрок <player> исправлен!"
 message.gg.help: "<b><gold>=== Команды Gravity Gun ===</gold></b>\n
    <click:run_command:'/gg help'><gold>/gg help</click> - показать этот список команд\n
    <click:run_command:'/gg reload'><gold>/gg reload</click> - перезагрузить конфигурацию плагина\n
-   <click:run_command:'/gg give'><gold>/gg give</click> - дать гравитационную пушку себе или другому игроку"
+   <click:run_command:'/gg give'><gold>/gg give</click> - дать гравитационную пушку себе или другому игроку\n
+   <click:run_command:'/gg fix'><gold>/gg fix</click> - починить гравитацию и коллизию игрока после неудачного захвата игрока"

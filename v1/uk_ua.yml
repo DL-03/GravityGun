@@ -1,0 +1,33 @@
+version: 2
+
+item.gravity-gun.name: "<gold>Гравітаційна пушка"
+
+message.config-reloaded: "<gray>[<gold>GG</gold>]</gray> <green>Конфігурація перезавантажена"
+message.no-permission: "<red>У вас немає дозволу на використання цієї команди"
+message.console-cant-use-command: "<red>Консоль не може використовувати цю команду"
+message.unknown-player: "<red>Гравця <player> не знайдено"
+message.players-not-found: "<red>Гравців не знайдено"
+
+message.update-checker.tag-not-found: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <red>Не вдалося знайти тег версії у відповіді GitHub.</red>"
+message.update-checker.unsecceed-tag-check: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <red>Не вдалося перевірити оновлення. Код відповіді GitHub: <code></red>"
+message.update-checker.error-while-checking-updates: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <red>Помилка під час спроби перевірити оновлення: <message></red>"
+
+message.update-checker.no-updates: "<gray>[<gold>GG</gold>]</gray> UpdateChecker <green>Ви використовуєте найновішу версію плагіна: <current-version></green>"
+
+message.update-checker.update-available: "
+====================================================\n
+Доступне оновлення для плагіна GravityGun!\n
+Поточна версія: <current-version>\n
+Нова версія: <new-version>\n
+Завантажити: <link>\n
+====================================================
+"
+
+message.gg.unknown-command: "<gray>[<gold>GG</gold>]</gray> <red>Невідома команда. Скористайтеся <click:run_command:“/gg help”><gold>/gg help</click> для перегляду списку команд."
+message.gg.give.success: "<gray>[<gold>GG</gold>]</gray> <green>Ви дали <player> гравітаційну пушку"
+message.gg.fix.success: "<gray>[<gold>GG</gold>]</gray> <green>Гравець <player> виправлений!"
+message.gg.help: "<b><gold>=== Команди Gravity Gun ===</gold></b>\n
+   <click:run_command:“/gg help”><gold>/gg help</click> — показати цей список команд\n
+   <click:run_command:“/gg reload”><gold>/gg reload</click> — перезавантажити конфігурацію плагіна\n
+   <click:run_command:“/gg give”><gold>/gg give</click> — дати гравітаційну пушку собі або іншому гравцю\n
+   <click:run_command:“/gg fix”><gold>/gg fix</click> — відновити гравітацію та колізію гравця після невдалого захоплення гравця"
