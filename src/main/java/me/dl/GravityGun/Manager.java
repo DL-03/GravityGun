@@ -1,5 +1,6 @@
 package me.dl.GravityGun;
 
+import io.papermc.paper.entity.TeleportFlag;
 import io.papermc.paper.event.player.PlayerInventorySlotChangeEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -35,6 +36,9 @@ public class Manager implements Listener {
     private final MiniMessage mm = MiniMessage.miniMessage();
     private final GravityGun plugin;
     private final LanguageManager lang;
+
+    List<Material> dangerousFallingBlock = List.of(Material.ANVIL, Material.CHIPPED_ANVIL, Material.DAMAGED_ANVIL, Material.POINTED_DRIPSTONE);
+    List<Material> ignoreChangeFallingBlock = List.of(Material.SAND, Material.RED_SAND, Material.GRAVEL, Material.ANVIL, Material.CHIPPED_ANVIL, Material.DAMAGED_ANVIL, Material.POINTED_DRIPSTONE);
 
     // Параметры механики
     private String configName;
@@ -192,8 +196,13 @@ public class Manager implements Listener {
             task_i = (task_i >= 5.0F) ? 0.0F : task_i + 1.0F;
             task_i_sound_amb = (task_i_sound_amb >= 20.0F) ? 0.0F : task_i_sound_amb + 1.0F;
 
+            List<Player> toRelease = new ArrayList<>();
+
             playerEntityMap.forEach((player, entity) -> {
-                if (entity == null || !entity.isValid()) return;
+                if (entity == null || !entity.isValid()) {
+                    toRelease.add(player);
+                    return;
+                }
 
                 Location offset = this.playerEntityLocationMap.get(player);
                 Location eye = player.getEyeLocation();
@@ -211,6 +220,7 @@ public class Manager implements Listener {
 
                 Location targetLoc = new Location(player.getWorld(), eye.getX() + ox, eye.getY() + oy, eye.getZ() + oz, yaw, pitch);
 
+
                 if (!canEntityTeleportSafely(entity, targetLoc)) {
                     double safeRad = Math.max(hold_distance_min, radius - 0.5);
                     targetLoc = eye.clone().add(eye.getDirection().multiply(safeRad));
@@ -221,7 +231,46 @@ public class Manager implements Listener {
                     invulnerableEntities.put(entity.getUniqueId(), System.currentTimeMillis() + 1000);
                 }
 
-                entity.teleportAsync(targetLoc);
+                // Проверка на максимальную дистанцию удержания
+                double currentDist = player.getLocation().distance(entity.getLocation());
+
+                if (entity instanceof Player targetPlayer) {
+                    // 1. Увеличиваем буфер дистанции для игроков (например, до +12 блоков),
+                    // так как они движутся по инерции и могут слегка отставать от луча пушки
+                    if (currentDist > hold_distance_max * 2) {
+                        release(player);
+                        return; // Выходим из итерации, так как игрока отпустило
+                    }
+
+                    // 2. Рассчитываем вектор до целевой точки
+                    Vector velocity = targetLoc.toVector().subtract(targetPlayer.getLocation().toVector());
+                    double distanceSq = velocity.lengthSquared();
+
+                    // Если расстояние совсем критическое (например, застрял в стене или жесткий лаг)
+                    if (distanceSq > 33.0) { // > 3  блоков
+                        // Принудительно притягиваем телепортом, чтобы не потерять
+                        targetPlayer.teleportAsync(targetLoc,
+                                org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.PLUGIN,
+                                io.papermc.paper.entity.TeleportFlag.Relative.VELOCITY_ROTATION
+                        );
+                    } else {
+                        // Ограничиваем максимальную силу рывка, чтобы игрока не уносило "в космос"
+                        // Множитель 1.25 дает хороший баланс между скоростью отклика и стабильностью
+                        if (distanceSq > 1.0) {
+                            velocity.normalize().multiply(1.25);
+                        }
+
+                        // Применяем плавную скорость
+                        targetPlayer.setVelocity(velocity);
+                    }
+                } else {
+                    // Логика для обычных мобов/блоков (остается без изменений)
+                    if (currentDist > hold_distance_max + 5.0) {
+                        toRelease.add(player);
+                        return;
+                    }
+                    entity.teleportAsync(targetLoc);
+                }
 
                 if (task_i == 0.0F) {
                     PersistentDataContainer pdc = entity.getPersistentDataContainer();
@@ -234,12 +283,16 @@ public class Manager implements Listener {
                 }
 
                 if (hold_max_time > 0 && (System.currentTimeMillis() - playerGrabTime.get(player)) > hold_max_time * 1000) {
-                    release(player);
+                    toRelease.add(player);
                 }
 
                 if (task_i_sound_amb == 0) player.getWorld().playSound(player, Sound.BLOCK_BEACON_AMBIENT, 0.5f, 1.5f);
-                if (player.getLocation().distance(entity.getLocation()) > hold_distance_max + 5.0) release(player);
+
             });
+
+            for (Player p : toRelease) {
+                release(p);
+            }
         }, 1L, 1L).getTaskId();
     }
 
@@ -484,18 +537,34 @@ public class Manager implements Listener {
         pdc.set(keyGG_is_holding, PersistentDataType.BOOLEAN, false);
 
         if (entity instanceof BlockDisplay && Boolean.TRUE.equals(pdc.get(keyIsBlock, PersistentDataType.BOOLEAN))) {
-            Material type = Material.valueOf(pdc.get(keyBlockType, PersistentDataType.STRING));
+            Material material = Material.valueOf(pdc.get(keyBlockType, PersistentDataType.STRING));
             BlockData data = Bukkit.createBlockData(pdc.get(keyBlockData, PersistentDataType.STRING));
 
+
             // Используем современный метод spawn вместо устаревшего конструктора FallingBlock
-            FallingBlock fb = entity.getWorld().spawn(entity.getLocation().toCenterLocation(), FallingBlock.class, fallingBlock -> {
-                fallingBlock.setBlockData(data);
-                fallingBlock.setDropItem(true);
+            FallingBlock fallingBlock = entity.getWorld().spawn(entity.getLocation().toCenterLocation(), FallingBlock.class, fb -> {
+                fb.setBlockData(data);
+                fb.setDropItem(true);
             });
 
-            PersistentDataContainer pdc_fb = fb.getPersistentDataContainer();
+            if (dangerousFallingBlock.contains(material)) {
+                fallingBlock.setHurtEntities(true);
+
+                // Корректируем параметры урона в зависимости от типа блока
+                if (material.name().contains("ANVIL")) {
+                    fallingBlock.setDamagePerBlock(2.0f); // Ванильное значение урона наковальни за блок падения
+                    fallingBlock.setMaxDamage(40);        // Максимальный урон (20 сердец)
+                } else if (material == Material.POINTED_DRIPSTONE) {
+                    fallingBlock.setDamagePerBlock(3.0f); // Сталактиты бьют чуть слабее наковален
+                    fallingBlock.setMaxDamage(100);        // Максимальный урон (10 сердец)
+                }
+            } else {
+                fallingBlock.setHurtEntities(false);
+            }
+
+            PersistentDataContainer pdc_fb = fallingBlock.getPersistentDataContainer();
             pdc_fb.set(keyIsBlock, PersistentDataType.BOOLEAN, true);
-            pdc_fb.set(keyBlockType, PersistentDataType.STRING, type.name());
+            pdc_fb.set(keyBlockType, PersistentDataType.STRING, material.name());
             pdc_fb.set(keyBlockData, PersistentDataType.STRING, data.getAsString());
 
             if (pdc.has(keyInventoryData, PersistentDataType.STRING)) {
@@ -503,7 +572,7 @@ public class Manager implements Listener {
             }
 
             entity.remove();
-            entity = fb;
+            entity = fallingBlock;
         }
 
         entity.setVelocity(player.getVelocity());
@@ -617,23 +686,31 @@ public class Manager implements Listener {
         }
     }
 
+    public boolean onEntityCropOrChangeBlockItem(Entity entity, Block block) {
+        if (entity instanceof FallingBlock fallingBlock) {
+            if (!fallingBlock.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN)) return false;
+
+            if (ignoreChangeFallingBlock.contains(fallingBlock.getBlockData().getMaterial())) {
+                return false;
+            }
+
+            restoreBlock(fallingBlock, block);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     @EventHandler(priority = EventPriority.LOWEST)
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
-        if (!(event.getEntity() instanceof FallingBlock fb)) return;
-        if (!fb.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN)) return;
-
-        event.setCancelled(true);
-        restoreBlock(fb, event.getBlock());
+        event.setCancelled(onEntityCropOrChangeBlockItem(event.getEntity(), event.getBlock()));
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onEntityDropItem(EntityDropItemEvent event) {
-        if (!(event.getEntity() instanceof FallingBlock fb)) return;
-        if (!fb.getPersistentDataContainer().has(keyIsBlock, PersistentDataType.BOOLEAN)) return;
-
-        event.setCancelled(true);
-        restoreBlock(fb, fb.getLocation().getBlock());
+        event.setCancelled(onEntityCropOrChangeBlockItem(event.getEntity(), event.getEntity().getLocation().getBlock()));
     }
+
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {

@@ -37,7 +37,7 @@ public class LanguageManager implements Listener {
     public String serverLanguage = "en_us"; // Устанавливаем значение по умолчанию сразу
     public final String DEFAULT_LANGUAGE = "en_us";
 
-    private final int REQUIRED_LANG_VERSION = 1;
+    private final int REQUIRED_LANG_VERSION = 2;
 
     public LanguageManager(GravityGun plugin) {
         this.plugin = plugin;
@@ -49,7 +49,7 @@ public class LanguageManager implements Listener {
         String configLang = plugin.getConfig().getString("language", DEFAULT_LANGUAGE);
         this.serverLanguage = (configLang != null ? configLang : DEFAULT_LANGUAGE).toLowerCase().replace('-', '_');
 
-        File langDir = new File(plugin.getDataFolder(), "lang");
+        File langDir = new File(plugin.getDataFolder(), "langs");
         if (!langDir.exists()) langDir.mkdirs();
 
         prepareInternalResource(DEFAULT_LANGUAGE);
@@ -89,7 +89,7 @@ public class LanguageManager implements Listener {
     private void checkAndLoadLocalFile(String langName) {
         if (langName == null || languageCache.containsKey(langName)) return;
 
-        File file = new File(plugin.getDataFolder(), "lang/" + langName + ".yml");
+        File file = new File(plugin.getDataFolder(), "langs/" + langName + ".yml");
         if (file.exists()) {
             languageCache.put(langName, YamlConfiguration.loadConfiguration(file));
         }
@@ -97,7 +97,7 @@ public class LanguageManager implements Listener {
 
     private boolean isLangOutdated(String langName) {
         if (langName == null) return true;
-        File file = new File(plugin.getDataFolder(), "lang/" + langName + ".yml");
+        File file = new File(plugin.getDataFolder(), "langs/" + langName + ".yml");
         if (!file.exists()) return true;
 
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
@@ -106,7 +106,7 @@ public class LanguageManager implements Listener {
 
     private void loadOrDownloadSync(String langName) {
         if (langName == null) return;
-        File file = new File(plugin.getDataFolder(), "lang/" + langName + ".yml");
+        File file = new File(plugin.getDataFolder(), "langs/" + langName + ".yml");
 
         if (!file.exists()) {
             prepareInternalResource(langName);
@@ -124,7 +124,7 @@ public class LanguageManager implements Listener {
     private void loadOrDownloadAsync(String langName) {
         if (langName == null) return;
         CompletableFuture.runAsync(() -> {
-            File file = new File(plugin.getDataFolder(), "lang/" + langName + ".yml");
+            File file = new File(plugin.getDataFolder(), "langs/" + langName + ".yml");
 
             if (!file.exists()) {
                 prepareInternalResource(langName);
@@ -169,11 +169,11 @@ public class LanguageManager implements Listener {
     }
 
     private void prepareInternalResource(String langName) {
-        File file = new File(plugin.getDataFolder(), "lang/" + langName + ".yml");
+        File file = new File(plugin.getDataFolder(), "langs/" + langName + ".yml");
         if (!file.exists()) {
             try {
-                if (plugin.getResource("lang/" + langName + ".yml") != null) {
-                    plugin.saveResource("lang/" + langName + ".yml", false);
+                if (plugin.getResource("langs/" + langName + ".yml") != null) {
+                    plugin.saveResource("langs/" + langName + ".yml", false);
                 }
             } catch (Exception ignored) {}
         }

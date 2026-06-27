@@ -1,5 +1,7 @@
 version: 1
 
+language: "en_us" # en_us, en_gb, ru_ru, uk_ua
+
 item:
   gravity-gun:
     name: ""  # If empty, it will use the default name from the language file
